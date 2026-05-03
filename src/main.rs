@@ -229,7 +229,8 @@ fn run_app(
             timeout = Duration::from_millis(0);
         }
 
-        if event::poll(timeout)? {
+        let has_event = event::poll(timeout)?;
+        if has_event {
             match event::read()? {
                 Event::Resize(cols, rows) => {
                     let new_w = (cols as usize).max(app.engine.w);
@@ -254,7 +255,8 @@ fn run_app(
         }
 
         now = Instant::now();
-        if cli.strict_timing {
+
+        if !has_event && cli.strict_timing {
             while now < next_clock_tick {
                 std::hint::spin_loop();
                 now = Instant::now();
