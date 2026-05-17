@@ -274,12 +274,7 @@ fn draw_status_bar(f: &mut Frame, app: &EditorState, area: Rect) {
     } else {
         String::new()
     };
-    let input_style = if app.midi.input_index == -1 {
-        StyleType::Default
-    } else {
-        StyleType::Input
-    };
-    write_ui(&mut ui_l1, &io_in_msg, gw * 5, gw * 4, input_style);
+    write_ui(&mut ui_l1, &io_in_msg, gw * 5, gw * 4, StyleType::Input);
 
     if app.commander.active {
         let cmd_str = format!(
