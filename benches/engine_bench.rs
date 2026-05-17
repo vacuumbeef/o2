@@ -16,7 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main};
-use o2_rs::core::app::App;
+use o2_rs::core::oxygen::EditorState;
 
 const GRIDS: &[(&str, &str)] = &[
     ("io", include_str!("../examples/benchmarks/io.o2")),
@@ -34,8 +34,8 @@ const GRIDS: &[(&str, &str)] = &[
     ("rw", include_str!("../examples/benchmarks/rw.o2")),
 ];
 
-fn setup_app(grid_str: &str, w: usize, h: usize) -> App {
-    let mut app = App::new(w, h, 42, 100);
+fn setup_app(grid_str: &str, w: usize, h: usize) -> EditorState {
+    let mut app = EditorState::new(w, h, 42, 100);
     app.load(grid_str, None);
     app.resize(w, h);
     app
@@ -56,7 +56,7 @@ fn bench_time_scaling(c: &mut Criterion) {
                         |app| {
                             for _ in 0..f {
                                 app.operate();
-                                app.f += 1;
+                                app.o2.f += 1;
                             }
                         },
                         BatchSize::LargeInput,
@@ -83,7 +83,7 @@ fn bench_space_scaling(c: &mut Criterion) {
                         |app| {
                             for _ in 0..10 {
                                 app.operate();
-                                app.f += 1;
+                                app.o2.f += 1;
                             }
                         },
                         BatchSize::LargeInput,

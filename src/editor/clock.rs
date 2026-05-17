@@ -36,7 +36,10 @@
 //! the same phase-locked counter so they remain aligned regardless of system
 //! scheduling latency.
 
-use crate::core::app::EditorState;
+use crate::core::oxygen::EditorState;
+
+const BPM_MIN: usize = 1;
+const BPM_MAX: usize = 360;
 
 impl EditorState {
     /// Sets [`bpm_target`](EditorState::bpm_target) to `target`, clamped to `[1, 360]`.
@@ -47,7 +50,7 @@ impl EditorState {
     /// # Examples
     ///
     /// ```
-    /// use o2_rs::core::app::EditorState;
+    /// use o2_rs::core::oxygen::EditorState;
     ///
     /// let mut app = EditorState::new(10, 10, 1, 100);
     /// app.set_bpm_target(150);
@@ -56,7 +59,7 @@ impl EditorState {
     /// assert_eq!(app.bpm_target, 360);
     /// ```
     pub fn set_bpm_target(&mut self, target: usize) {
-        self.bpm_target = target.clamp(1, 360);
+        self.bpm_target = target.clamp(BPM_MIN, BPM_MAX);
     }
 
     /// Sets both [`bpm`](EditorState::bpm) and [`bpm_target`](EditorState::bpm_target) to
@@ -67,7 +70,7 @@ impl EditorState {
     /// # Examples
     ///
     /// ```
-    /// use o2_rs::core::app::EditorState;
+    /// use o2_rs::core::oxygen::EditorState;
     ///
     /// let mut app = EditorState::new(10, 10, 1, 100);
     /// app.set_bpm(140);
@@ -75,7 +78,7 @@ impl EditorState {
     /// assert_eq!(app.bpm_target, 140);
     /// ```
     pub fn set_bpm(&mut self, bpm: usize) {
-        let c = bpm.clamp(1, 360);
+        let c = bpm.clamp(BPM_MIN, BPM_MAX);
         self.bpm = c;
         self.bpm_target = c;
     }
@@ -89,7 +92,7 @@ impl EditorState {
     /// # Examples
     ///
     /// ```
-    /// use o2_rs::core::app::EditorState;
+    /// use o2_rs::core::oxygen::EditorState;
     ///
     /// let mut app = EditorState::new(10, 10, 1, 100);
     /// app.set_bpm_target(120);
@@ -97,7 +100,8 @@ impl EditorState {
     /// assert_eq!(app.bpm_target, 130);
     /// ```
     pub fn mod_bpm_target(&mut self, diff: isize) {
-        let new_target = (self.bpm_target as isize + diff).clamp(1, 360) as usize;
+        let new_target =
+            (self.bpm_target as isize + diff).clamp(BPM_MIN as isize, BPM_MAX as isize) as usize;
         self.bpm_target = new_target;
     }
 
@@ -109,7 +113,7 @@ impl EditorState {
     /// # Examples
     ///
     /// ```
-    /// use o2_rs::core::app::EditorState;
+    /// use o2_rs::core::oxygen::EditorState;
     ///
     /// let mut app = EditorState::new(10, 10, 1, 100);
     /// app.set_bpm(120);
@@ -118,7 +122,7 @@ impl EditorState {
     /// assert_eq!(app.bpm_target, 150);
     /// ```
     pub fn mod_bpm(&mut self, diff: isize) {
-        let new_val = (self.bpm as isize + diff).clamp(1, 360) as usize;
+        let new_val = (self.bpm as isize + diff).clamp(BPM_MIN as isize, BPM_MAX as isize) as usize;
         self.bpm = new_val;
         self.bpm_target = new_val;
     }
@@ -126,7 +130,7 @@ impl EditorState {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::app::EditorState;
+    use crate::core::oxygen::EditorState;
 
     #[test]
     fn test_set_bpm_clamps() {
@@ -189,7 +193,7 @@ mod tests {
 
 #[cfg(test)]
 mod property_tests {
-    use crate::core::app::EditorState;
+    use crate::core::oxygen::EditorState;
     use proptest::prelude::*;
 
     proptest! {

@@ -34,7 +34,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use o2_rs::{
-    core::app::{EditorState, PopupType},
+    core::oxygen::{EditorState, PopupType},
     editor::input,
     ui::render,
 };
@@ -146,12 +146,11 @@ impl Drop for TerminalGuard {
 }
 
 fn parse_size(s: &str) -> Result<(usize, usize), String> {
-    let parts: Vec<&str> = s.split('x').collect();
-    if parts.len() != 2 {
-        return Err("Expected format NxM (e.g. 57x25)".to_string());
-    }
-    let w = parts[0].parse().map_err(|_| "Invalid width")?;
-    let h = parts[1].parse().map_err(|_| "Invalid height")?;
+    let (ws, hs) = s
+        .split_once('x')
+        .ok_or_else(|| "Expected format NxM (e.g. 57x25)".to_string())?;
+    let w = ws.parse().map_err(|_| "Invalid width".to_string())?;
+    let h = hs.parse().map_err(|_| "Invalid height".to_string())?;
     Ok((w, h))
 }
 
@@ -176,14 +175,7 @@ fn emergency_save(app: &EditorState) {
         PathBuf::from(format!("patch-{}.o2.save", input::arvelie_neralie()))
     };
 
-    let mut content = String::with_capacity((app.engine.w + 1) * app.engine.h);
-    for y in 0..app.engine.h {
-        for x in 0..app.engine.w {
-            content.push(app.engine.cells[y * app.engine.w + x]);
-        }
-        content.push('\n');
-    }
-
+    let content = app.to_grid_string();
     if std::fs::write(&save_path, content.trim_end()).is_ok() {
         eprintln!(
             "\n[o2] Application panicked! Emergency save created at: {}",
@@ -233,8 +225,8 @@ fn run_app(
         if has_event {
             match event::read()? {
                 Event::Resize(cols, rows) => {
-                    let new_w = (cols as usize).max(app.engine.w);
-                    let new_h = (rows.saturating_sub(2) as usize).max(app.engine.h);
+                    let new_w = (cols as usize).max(app.o2.w);
+                    let new_h = (rows.saturating_sub(2) as usize).max(app.o2.h);
                     app.resize(new_w, new_h);
                     needs_draw = true;
                 }
@@ -267,15 +259,12 @@ fn run_app(
             if clock_counter == 0 && !app.paused {
                 app.operate();
                 app.midi.run();
-                app.engine.f += 1;
+                app.o2.f += 1;
                 needs_draw = true;
             }
 
-            if app.midi_bclock
-                && !app.paused
-                && let Some(conn) = app.midi.out.as_mut()
-            {
-                let _ = conn.send(&[0xF8]);
+            if app.midi_bclock && !app.paused {
+                app.midi.send_clock_pulse();
             }
 
             clock_counter = (clock_counter + 1) % 6;
@@ -345,7 +334,7 @@ fn main() -> Result<()> {
         && let Ok(content) = std::fs::read_to_string(path)
     {
         app.load(&content, Some(path.clone()));
-        app.resize(term_w.max(app.engine.w), term_h.max(app.engine.h));
+        app.resize(term_w.max(app.o2.w), term_h.max(app.o2.h));
         app.history.saved_absolute_index = Some(app.history.offset + app.history.index);
     } else {
         app.update_ports();

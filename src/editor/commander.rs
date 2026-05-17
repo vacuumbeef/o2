@@ -24,7 +24,15 @@
 //!
 //! Every command also has a two-letter shorthand alias.
 
-use crate::core::app::EditorState;
+use crate::core::oxygen::EditorState;
+
+/// Splits a raw command string into a lowercased command name and its value.
+fn parse_command(cmd: &str) -> (String, String) {
+    let mut parts = cmd.splitn(2, ':');
+    let command = parts.next().unwrap_or("").trim().to_lowercase();
+    let value = parts.next().unwrap_or("").trim().to_string();
+    (command, value)
+}
 
 /// Parses and executes a commander command string.
 ///
@@ -64,9 +72,8 @@ use crate::core::app::EditorState;
 /// * `origin` -- optional grid position used as the write target for `write`
 ///   and `time` commands when no explicit coordinates are given.
 pub fn run_command(app: &mut EditorState, cmd: &str, origin: Option<(usize, usize)>) {
-    let mut parts = cmd.splitn(2, ':');
-    let command = parts.next().unwrap_or("").trim().to_lowercase();
-    let value = parts.next().unwrap_or("").trim();
+    let (command, value) = parse_command(cmd);
+    let value = value.as_str();
 
     match command.as_str() {
         "bpm" | "bp" => {
@@ -81,7 +88,7 @@ pub fn run_command(app: &mut EditorState, cmd: &str, origin: Option<(usize, usiz
         }
         "frame" | "fr" => {
             if let Ok(v) = value.parse::<usize>() {
-                app.engine.f = v;
+                app.o2.f = v;
             }
         }
         "play" | "pl" => {
@@ -96,23 +103,23 @@ pub fn run_command(app: &mut EditorState, cmd: &str, origin: Option<(usize, usiz
         "run" | "ru" => {
             app.operate();
             app.midi.run();
-            app.engine.f += 1;
+            app.o2.f += 1;
         }
         "rewind" | "re" => {
             if let Ok(v) = value.parse::<usize>() {
-                app.engine.f = app.engine.f.saturating_sub(v);
+                app.o2.f = app.o2.f.saturating_sub(v);
             }
         }
         "skip" | "sk" => {
             if let Ok(v) = value.parse::<usize>() {
-                app.engine.f += v;
+                app.o2.f += v;
             }
         }
         "find" | "fi" => {
-            let cells_str: String = app.engine.cells.iter().collect();
+            let cells_str: String = app.o2.cells.iter().collect();
             if let Some(idx) = cells_str.find(value) {
-                let x = idx % app.engine.w;
-                let y = idx / app.engine.w;
+                let x = idx % app.o2.w;
+                let y = idx / app.o2.w;
                 app.select(
                     x as isize,
                     y as isize,
@@ -138,30 +145,42 @@ pub fn run_command(app: &mut EditorState, cmd: &str, origin: Option<(usize, usiz
                 let x = p
                     .get(1)
                     .and_then(|v| v.parse::<isize>().ok())
-                    .unwrap_or_else(|| origin.map(|o| o.0 as isize).unwrap_or(app.cx as isize));
+                    .unwrap_or_else(|| {
+                        origin
+                            .map(|o| o.0 as isize)
+                            .unwrap_or(app.cursor.cx as isize)
+                    });
                 let y = p
                     .get(2)
                     .and_then(|v| v.parse::<isize>().ok())
-                    .unwrap_or_else(|| origin.map(|o| o.1 as isize).unwrap_or(app.cy as isize));
+                    .unwrap_or_else(|| {
+                        origin
+                            .map(|o| o.1 as isize)
+                            .unwrap_or(app.cursor.cy as isize)
+                    });
                 for (i, c) in text.chars().enumerate() {
                     let target_x = x + i as isize;
                     if target_x >= 0 && y >= 0 {
                         app.write_silent(target_x as usize, y as usize, c);
                     }
                 }
-                app.history.record(&app.engine.cells);
+                app.history.record(&app.o2.cells);
                 app.update_ports();
             }
         }
         "time" | "ti" => {
-            let ms = (15000u64 * app.engine.f as u64) / app.bpm.max(1) as u64;
+            let ms = (15000u64 * app.o2.f as u64) / app.bpm.max(1) as u64;
             let total_seconds = ms / 1000;
             let minutes = (total_seconds / 60) % 60;
             let seconds = total_seconds % 60;
             let text = format!("{:02}{:02}", minutes, seconds);
 
-            let x = origin.map(|o| o.0 as isize).unwrap_or(app.cx as isize);
-            let y = origin.map(|o| o.1 as isize).unwrap_or(app.cy as isize);
+            let x = origin
+                .map(|o| o.0 as isize)
+                .unwrap_or(app.cursor.cx as isize);
+            let y = origin
+                .map(|o| o.1 as isize)
+                .unwrap_or(app.cursor.cy as isize);
 
             for (i, c) in text.chars().enumerate() {
                 let target_x = x + i as isize;
@@ -169,7 +188,7 @@ pub fn run_command(app: &mut EditorState, cmd: &str, origin: Option<(usize, usiz
                     app.write_silent(target_x as usize, y as usize, c);
                 }
             }
-            app.history.record(&app.engine.cells);
+            app.history.record(&app.o2.cells);
             app.update_ports();
         }
         "cc" => {
@@ -220,16 +239,15 @@ pub fn run_command(app: &mut EditorState, cmd: &str, origin: Option<(usize, usiz
 /// cursor to the matching position while the user continues typing, so the
 /// match is visible before Enter is pressed.
 pub fn preview_command(app: &mut EditorState) {
-    let cmd = &app.query;
-    let mut parts = cmd.splitn(2, ':');
-    let command = parts.next().unwrap_or("").trim().to_lowercase();
-    let value = parts.next().unwrap_or("").trim();
+    let query = app.commander.query.clone();
+    let (command, value) = parse_command(&query);
+    let value = value.as_str();
 
     if command == "find" || command == "fi" {
-        let cells_str: String = app.engine.cells.iter().collect();
+        let cells_str: String = app.o2.cells.iter().collect();
         if let Some(idx) = cells_str.find(value) {
-            let x = idx % app.engine.w;
-            let y = idx / app.engine.w;
+            let x = idx % app.o2.w;
+            let y = idx / app.o2.w;
             app.select(
                 x as isize,
                 y as isize,
@@ -289,10 +307,10 @@ mod tests {
     fn test_run_command_frame() {
         let mut app = create_app();
         run_command(&mut app, "frame:100", None);
-        assert_eq!(app.engine.f, 100);
+        assert_eq!(app.o2.f, 100);
 
         run_command(&mut app, "fr:50", None);
-        assert_eq!(app.engine.f, 50);
+        assert_eq!(app.o2.f, 50);
     }
 
     #[test]
@@ -316,15 +334,15 @@ mod tests {
     #[test]
     fn test_run_command_run() {
         let mut app = create_app();
-        app.engine.f = 10;
+        app.o2.f = 10;
         app.write_silent(1, 1, 'E');
         run_command(&mut app, "run", None);
-        assert_eq!(app.engine.f, 11);
+        assert_eq!(app.o2.f, 11);
         assert_eq!(app.glyph_at(1, 1), '.');
         assert_eq!(app.glyph_at(2, 1), 'E');
 
         run_command(&mut app, "ru", None);
-        assert_eq!(app.engine.f, 12);
+        assert_eq!(app.o2.f, 12);
         assert_eq!(app.glyph_at(2, 1), '.');
         assert_eq!(app.glyph_at(3, 1), 'E');
     }
@@ -332,38 +350,38 @@ mod tests {
     #[test]
     fn test_run_command_skip_rewind() {
         let mut app = create_app();
-        app.engine.f = 10;
+        app.o2.f = 10;
 
         run_command(&mut app, "skip:5", None);
-        assert_eq!(app.engine.f, 15);
+        assert_eq!(app.o2.f, 15);
 
         run_command(&mut app, "sk:2", None);
-        assert_eq!(app.engine.f, 17);
+        assert_eq!(app.o2.f, 17);
 
         run_command(&mut app, "rewind:10", None);
-        assert_eq!(app.engine.f, 7);
+        assert_eq!(app.o2.f, 7);
 
         run_command(&mut app, "re:10", None);
-        assert_eq!(app.engine.f, 0);
+        assert_eq!(app.o2.f, 0);
 
         run_command(&mut app, "re:100", None);
-        assert_eq!(app.engine.f, 0);
+        assert_eq!(app.o2.f, 0);
     }
 
     #[test]
     fn test_run_command_select() {
         let mut app = create_app();
         run_command(&mut app, "select:2;3;4;5", None);
-        assert_eq!(app.cx, 2);
-        assert_eq!(app.cy, 3);
-        assert_eq!(app.cw, 4);
-        assert_eq!(app.ch, 5);
+        assert_eq!(app.cursor.cx, 2);
+        assert_eq!(app.cursor.cy, 3);
+        assert_eq!(app.cursor.cw, 4);
+        assert_eq!(app.cursor.ch, 5);
 
         run_command(&mut app, "se:1;1", None);
-        assert_eq!(app.cx, 1);
-        assert_eq!(app.cy, 1);
-        assert_eq!(app.cw, 0);
-        assert_eq!(app.ch, 0);
+        assert_eq!(app.cursor.cx, 1);
+        assert_eq!(app.cursor.cy, 1);
+        assert_eq!(app.cursor.cw, 0);
+        assert_eq!(app.cursor.ch, 0);
     }
 
     #[test]
@@ -400,20 +418,20 @@ mod tests {
         app.write_silent(8, 3, 'n');
 
         run_command(&mut app, "find:oxygen", None);
-        assert_eq!(app.cx, 3);
-        assert_eq!(app.cy, 3);
-        assert_eq!(app.cw, 5);
-        assert_eq!(app.ch, 0);
+        assert_eq!(app.cursor.cx, 3);
+        assert_eq!(app.cursor.cy, 3);
+        assert_eq!(app.cursor.cw, 5);
+        assert_eq!(app.cursor.ch, 0);
 
-        app.cx = 0;
-        app.cy = 0;
-        app.cw = 0;
+        app.cursor.cx = 0;
+        app.cursor.cy = 0;
+        app.cursor.cw = 0;
 
         run_command(&mut app, "fi:oxygen", None);
-        assert_eq!(app.cx, 3);
-        assert_eq!(app.cy, 3);
-        assert_eq!(app.cw, 5);
-        assert_eq!(app.ch, 0);
+        assert_eq!(app.cursor.cx, 3);
+        assert_eq!(app.cursor.cy, 3);
+        assert_eq!(app.cursor.cw, 5);
+        assert_eq!(app.cursor.ch, 0);
     }
 
     #[test]
@@ -436,35 +454,35 @@ mod tests {
     fn test_preview_command() {
         let mut app = create_app();
         app.write_silent(5, 5, 'x');
-        app.query = "find:x".to_string();
+        app.commander.query = "find:x".to_string();
 
         preview_command(&mut app);
-        assert_eq!(app.cx, 5);
-        assert_eq!(app.cy, 5);
-        assert_eq!(app.cw, 0);
+        assert_eq!(app.cursor.cx, 5);
+        assert_eq!(app.cursor.cy, 5);
+        assert_eq!(app.cursor.cw, 0);
 
-        app.query = "se:2;2;1;1".to_string();
+        app.commander.query = "se:2;2;1;1".to_string();
         preview_command(&mut app);
-        assert_eq!(app.cx, 2);
-        assert_eq!(app.cy, 2);
-        assert_eq!(app.cw, 1);
-        assert_eq!(app.ch, 1);
+        assert_eq!(app.cursor.cx, 2);
+        assert_eq!(app.cursor.cy, 2);
+        assert_eq!(app.cursor.cw, 1);
+        assert_eq!(app.cursor.ch, 1);
     }
 
     #[test]
     fn test_unknown_command() {
         let mut app = create_app();
-        let old_f = app.engine.f;
+        let old_f = app.o2.f;
         let old_bpm = app.bpm;
         run_command(&mut app, "fck_afd:2026", None);
-        assert_eq!(app.engine.f, old_f);
+        assert_eq!(app.o2.f, old_f);
         assert_eq!(app.bpm, old_bpm);
     }
 
     #[test]
     fn test_run_command_time() {
         let mut app = create_app();
-        app.engine.f = 0;
+        app.o2.f = 0;
         app.bpm = 120;
 
         run_command(&mut app, "time", Some((0, 0)));
@@ -473,7 +491,7 @@ mod tests {
         assert_eq!(app.glyph_at(2, 0), '0');
         assert_eq!(app.glyph_at(3, 0), '0');
 
-        app.engine.f = 480;
+        app.o2.f = 480;
         run_command(&mut app, "ti", Some((0, 1)));
         assert_eq!(app.glyph_at(0, 1), '0');
         assert_eq!(app.glyph_at(1, 1), '1');
@@ -489,7 +507,7 @@ mod tests {
         assert_eq!(app.bpm, old_bpm);
 
         run_command(&mut app, "se:1", None);
-        assert_eq!(app.cx, 0);
+        assert_eq!(app.cursor.cx, 0);
     }
 
     #[test]
@@ -519,7 +537,7 @@ mod tests {
         run_command(&mut app, "write:hello;-100;-100", None);
         run_command(&mut app, "wr:hello;999;999", None);
 
-        for &cell in &app.engine.cells {
+        for &cell in &app.o2.cells {
             assert_eq!(cell, '.');
         }
     }
@@ -529,12 +547,12 @@ mod tests {
         let mut app = create_app();
         run_command(&mut app, "se:-500;-500;9999;9999", None);
 
-        assert_eq!(app.cx, 0);
-        assert_eq!(app.cy, 0);
-        assert!(app.cw <= app.engine.w as isize);
-        assert!(app.ch <= app.engine.h as isize);
-        assert!(app.max_x < app.engine.w);
-        assert!(app.max_y < app.engine.h);
+        assert_eq!(app.cursor.cx, 0);
+        assert_eq!(app.cursor.cy, 0);
+        assert!(app.cursor.cw <= app.o2.w as isize);
+        assert!(app.cursor.ch <= app.o2.h as isize);
+        assert!(app.cursor.max_x < app.o2.w);
+        assert!(app.cursor.max_y < app.o2.h);
     }
 
     #[test]
@@ -550,10 +568,10 @@ mod tests {
     fn test_preview_command_safe_fail() {
         let mut app = create_app();
 
-        app.query = "se:999999999999999999999999999999999".to_string();
+        app.commander.query = "se:999999999999999999999999999999999".to_string();
         preview_command(&mut app);
 
-        app.query = "find:\\u{0000}".to_string();
+        app.commander.query = "find:\\u{0000}".to_string();
         preview_command(&mut app);
     }
 }
