@@ -15,17 +15,7 @@ Rust port of the ORCΛ esoteric programming language and terminal livecoding env
 [![License: GPL-3.0-or-later](https://img.shields.io/crates/l/o2-rs.svg)](LICENSE)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/coignard)
 
-![Demo](assets/demo.gif)
-
 </div>
-
-The original ORCΛ ecosystem has two reference implementations: a [JavaScript/Electron desktop app](https://github.com/hundredrabbits/Orca) and a [C terminal livecoding environment](https://github.com/hundredrabbits/Orca-c). The JS version has a polished interface, but runs on a garbage-collected runtime that introduces timing jitter, a real problem when sending MIDI. The C version is fast and memory-efficient, but its ncurses UI is bare-bones and its clipboard support requires shelling out to `xclip`.
-
-O₂ borrows the JS version's UX and builds it on the flat-buffer memory layout from Orca-C, in Rust. That means a phase-locked MIDI clock, zero heap allocations per frame, a [ratatui](https://github.com/ratatui/ratatui) UI with span-merging to cut terminal I/O, and native clipboard via arboard.
-
-If you already write ORCΛ patches, O₂ runs them as-is.
-
-Batteries included.
 
 ## Install
 
@@ -70,16 +60,6 @@ O₂ extends the original ORCΛ operator set with one additional glyph.
 
 The `_` character is valid in the length port of the MIDI (`:`) and Mono (` % `) operators. It creates a note with no scheduled Note Off.
 
-```
-:01C._
-```
-
-An explicit Note Off event can be sent with:
-
-```
-:01C.0
-```
-
 ## Test
 
 ```bash
@@ -89,17 +69,6 @@ cargo test
 ## Credits
 
 O₂ is a Rust port of the [ORCΛ](https://github.com/hundredrabbits/Orca) esoteric programming language and livecoding environment, combining the best of the original JS and C implementations by [Hundred Rabbits](https://github.com/hundredrabbits) (Devine Lu Linvega & Rek Bell).
-
-The ORCΛ language specification, operator semantics, and example patches are their work.
-
-Relevant implementations:
-
-| Language   | Repository                                                        |
-|------------|-------------------------------------------------------------------|
-| JavaScript | [hundredrabbits/Orca](https://github.com/hundredrabbits/Orca)     |
-| C          | [hundredrabbits/Orca-c](https://github.com/hundredrabbits/Orca-c) |
-
-Built with [ratatui](https://github.com/ratatui/ratatui).
 
 ## Sponsors
 
