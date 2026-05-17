@@ -23,6 +23,25 @@ use midir::{MidiInput, MidiOutput, MidiOutputConnection};
 use rosc::{OscMessage, OscPacket, OscType, encoder};
 use std::net::UdpSocket;
 
+pub(crate) const MIDI_NOTE_OFF: u8 = 0x80;
+const MIDI_NOTE_ON: u8 = 0x90;
+const MIDI_CC: u8 = 0xB0;
+const MIDI_PROGRAM_CHANGE: u8 = 0xC0;
+const MIDI_PITCH_BEND: u8 = 0xE0;
+
+/// MIDI timing clock pulse byte, sent 24 times per quarter note.
+pub const MIDI_CLOCK_PULSE: u8 = 0xF8;
+const MIDI_START: u8 = 0xFA;
+const MIDI_STOP: u8 = 0xFC;
+
+const MIDI_ALL_NOTES_OFF: u8 = 123;
+const MIDI_BANK_SELECT_LSB: u8 = 32;
+const MIDI_CHANNELS: usize = 16;
+
+const DEFAULT_CC_OFFSET: u8 = 64;
+const DEFAULT_OSC_PORT: u16 = 49162;
+const DEFAULT_UDP_PORT: u16 = 49161;
+
 /// A single note event in the polyphonic playback stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MidiNote {
@@ -82,7 +101,7 @@ pub struct MidiState {
     pub stack: Vec<MidiNote>,
     /// Monophonic per-channel slots populated by `%`. Each channel can hold at
     /// most one active note at a time.
-    pub mono_stack: [Option<MidiNote>; 16],
+    pub mono_stack: [Option<MidiNote>; MIDI_CHANNELS],
     /// Pending CC and Pitch Bend messages, cleared after each [`run`](MidiState::run) call.
     pub cc_stack: Vec<MidiMessage>,
     /// OSC output state: pending message queue and destination port.
@@ -135,9 +154,9 @@ impl MidiState {
             stack: Vec::new(),
             mono_stack: std::array::from_fn(|_| None),
             cc_stack: Vec::new(),
-            osc: Osc::new(49162),
-            udp: Udp::new(49161),
-            cc_offset: 64,
+            osc: Osc::new(DEFAULT_OSC_PORT),
+            udp: Udp::new(DEFAULT_UDP_PORT),
+            cc_offset: DEFAULT_CC_OFFSET,
             device_name: String::from("No Midi Device"),
             input_device_name: String::from("No Input Device"),
             output_index: -1,
@@ -232,11 +251,15 @@ impl MidiState {
 
         self.stack.retain_mut(|note| {
             if !note.is_played {
-                to_send.push(vec![0x90 + note.channel, note.note_id, note.velocity]);
+                to_send.push(vec![
+                    MIDI_NOTE_ON + note.channel,
+                    note.note_id,
+                    note.velocity,
+                ]);
                 note.is_played = true;
             }
             if note.length < 1 {
-                to_send.push(vec![0x80 + note.channel, note.note_id, 0]);
+                to_send.push(vec![MIDI_NOTE_OFF + note.channel, note.note_id, 0]);
                 false
             } else {
                 note.length = note.length.saturating_sub(1);
@@ -248,13 +271,17 @@ impl MidiState {
             if let Some(note) = slot {
                 if note.length < 1 {
                     if note.is_played {
-                        to_send.push(vec![0x80 + note.channel, note.note_id, 0]);
+                        to_send.push(vec![MIDI_NOTE_OFF + note.channel, note.note_id, 0]);
                     }
                     *slot = None;
                     continue;
                 }
                 if !note.is_played {
-                    to_send.push(vec![0x90 + note.channel, note.note_id, note.velocity]);
+                    to_send.push(vec![
+                        MIDI_NOTE_ON + note.channel,
+                        note.note_id,
+                        note.velocity,
+                    ]);
                     note.is_played = true;
                 }
                 note.length = note.length.saturating_sub(1);
@@ -265,10 +292,10 @@ impl MidiState {
             match msg {
                 MidiMessage::Cc(cc) => {
                     let knob_val = self.cc_offset.saturating_add(cc.knob).min(127);
-                    to_send.push(vec![0xB0 + cc.channel, knob_val, cc.value]);
+                    to_send.push(vec![MIDI_CC + cc.channel, knob_val, cc.value]);
                 }
                 MidiMessage::Pb(pb) => {
-                    to_send.push(vec![0xE0 + pb.channel, pb.lsb, pb.msb]);
+                    to_send.push(vec![MIDI_PITCH_BEND + pb.channel, pb.lsb, pb.msb]);
                 }
             }
         }
@@ -291,16 +318,16 @@ impl MidiState {
 
         for note in &self.stack {
             if note.is_played {
-                kill_notes.push(vec![0x80 + note.channel, note.note_id, 0]);
+                kill_notes.push(vec![MIDI_NOTE_OFF + note.channel, note.note_id, 0]);
             }
         }
         for n in self.mono_stack.iter().flatten() {
             if n.is_played {
-                kill_notes.push(vec![0x80 + n.channel, n.note_id, 0]);
+                kill_notes.push(vec![MIDI_NOTE_OFF + n.channel, n.note_id, 0]);
             }
         }
-        for ch in 0..16 {
-            kill_notes.push(vec![0xB0 + ch, 123, 0]);
+        for ch in 0..MIDI_CHANNELS as u8 {
+            kill_notes.push(vec![MIDI_CC + ch, MIDI_ALL_NOTES_OFF, 0]);
         }
 
         for msg in kill_notes {
@@ -320,24 +347,32 @@ impl MidiState {
     /// Parameters that are `None` are silently skipped.
     pub fn send_pg(&mut self, channel: u8, bank: Option<u8>, sub: Option<u8>, pgm: Option<u8>) {
         if let Some(b) = bank {
-            self.send_midi_msg(&[0xB0 + channel, 0, b]);
+            self.send_midi_msg(&[MIDI_CC + channel, 0, b]);
         }
         if let Some(s) = sub {
-            self.send_midi_msg(&[0xB0 + channel, 32, s]);
+            self.send_midi_msg(&[MIDI_CC + channel, MIDI_BANK_SELECT_LSB, s]);
         }
         if let Some(p) = pgm {
-            self.send_midi_msg(&[0xC0 + channel, p.min(127)]);
+            self.send_midi_msg(&[MIDI_PROGRAM_CHANGE + channel, p.min(127)]);
         }
     }
 
     /// Transmits a MIDI Start message (0xFA) to the output device.
     pub fn send_clock_start(&mut self) {
-        self.send_midi_msg(&[0xFA]);
+        self.send_midi_msg(&[MIDI_START]);
     }
 
     /// Transmits a MIDI Stop message (0xFC) to the output device.
     pub fn send_clock_stop(&mut self) {
-        self.send_midi_msg(&[0xFC]);
+        self.send_midi_msg(&[MIDI_STOP]);
+    }
+
+    /// Transmits a MIDI Beat Clock pulse (0xF8) directly to the output connection,
+    /// bypassing the OSC/Bidule forwarding path to preserve tight timing.
+    pub fn send_clock_pulse(&mut self) {
+        if let Some(conn) = self.out.as_mut() {
+            let _ = conn.send(&[MIDI_CLOCK_PULSE]);
+        }
     }
 }
 
