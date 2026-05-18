@@ -139,6 +139,10 @@ pub struct EditorState {
     /// Stack of currently visible overlay screens, rendered front-to-back.
     /// The last element is the topmost (focused) overlay.
     pub popup: Vec<PopupType>,
+
+    /// When `true`, the renderer uses only black and white instead of the full colour palette.
+    pub monochrome: bool,
+
     /// ROFL BUFFER!!!
     pub rofl_buffer: String,
 }
@@ -181,6 +185,7 @@ impl EditorState {
             midi: MidiState::new(),
             midi_bclock: false,
             popup: Vec::new(),
+            monochrome: false,
             rofl_buffer: String::with_capacity(4),
         };
         app.cursor.calc_bounds();
@@ -192,35 +197,20 @@ impl EditorState {
     /// Adjusts [`scroll_x`](EditorState::scroll_x) and [`scroll_y`](EditorState::scroll_y)
     /// so the cursor stays visible within the viewport.
     ///
-    /// A margin of up to three cells is maintained around the cursor when the
-    /// last input was from the keyboard. When [`last_input_was_mouse`](EditorState::last_input_was_mouse)
-    /// is `true` no margin is applied, so the view does not shift unexpectedly
-    /// after a mouse click.
-    ///
+    /// Scroll triggers only when the cursor moves outside the visible area.
     /// Both scroll offsets are clamped so the viewport never extends beyond the
     /// grid boundaries.
     pub fn update_scroll(&mut self, viewport_w: usize, viewport_h: usize) {
-        let margin_x = if self.last_input_was_mouse {
-            0
-        } else {
-            3.min(viewport_w / 4)
-        };
-        let margin_y = if self.last_input_was_mouse {
-            0
-        } else {
-            3.min(viewport_h / 4)
-        };
-
-        if self.cursor.cx < self.scroll_x + margin_x {
-            self.scroll_x = self.cursor.cx.saturating_sub(margin_x);
-        } else if self.cursor.cx >= self.scroll_x + viewport_w.saturating_sub(margin_x) {
-            self.scroll_x = (self.cursor.cx + margin_x + 1).saturating_sub(viewport_w);
+        if self.cursor.cx < self.scroll_x {
+            self.scroll_x = self.cursor.cx;
+        } else if self.cursor.cx >= self.scroll_x + viewport_w {
+            self.scroll_x = self.cursor.cx + 1 - viewport_w;
         }
 
-        if self.cursor.cy < self.scroll_y + margin_y {
-            self.scroll_y = self.cursor.cy.saturating_sub(margin_y);
-        } else if self.cursor.cy >= self.scroll_y + viewport_h.saturating_sub(margin_y) {
-            self.scroll_y = (self.cursor.cy + margin_y + 1).saturating_sub(viewport_h);
+        if self.cursor.cy < self.scroll_y {
+            self.scroll_y = self.cursor.cy;
+        } else if self.cursor.cy >= self.scroll_y + viewport_h {
+            self.scroll_y = self.cursor.cy + 1 - viewport_h;
         }
 
         let max_scroll_x = self.o2.w.saturating_sub(viewport_w);
@@ -1274,13 +1264,13 @@ mod tests {
         app.cursor.cx = 15;
         app.cursor.cy = 15;
         app.update_scroll(10, 10);
-        assert_eq!(app.scroll_x, 8);
-        assert_eq!(app.scroll_y, 8);
+        assert_eq!(app.scroll_x, 6);
+        assert_eq!(app.scroll_y, 6);
 
         app.cursor.cx = 6;
         app.cursor.cy = 8;
         app.update_scroll(10, 10);
-        assert_eq!(app.scroll_x, 4);
+        assert_eq!(app.scroll_x, 6);
         assert_eq!(app.scroll_y, 6);
     }
 
