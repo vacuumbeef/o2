@@ -109,7 +109,14 @@ fn resolve_colors(style: StyleType, monochrome: bool) -> (Color, Color) {
     }
 }
 
-fn write_ui(row: &mut [UiChar], text: &str, offset: usize, limit: usize, style: StyleType, monochrome: bool) {
+fn write_ui(
+    row: &mut [UiChar],
+    text: &str,
+    offset: usize,
+    limit: usize,
+    style: StyleType,
+    monochrome: bool,
+) {
     let (fg, bg) = resolve_colors(style, monochrome);
 
     for (i, c) in text.chars().take(limit).enumerate() {
@@ -279,14 +286,28 @@ fn draw_status_bar(f: &mut Frame, app: &EditorState, area: Rect) {
 
     let io_str = "|".repeat(io_count.min(gw.saturating_sub(1)));
     let io_inspect = format!("{:.<1$}", io_str, gw.saturating_sub(1));
-    write_ui(&mut ui_l1, &io_inspect, gw * 4, gw - 1, StyleType::Input, mono);
+    write_ui(
+        &mut ui_l1,
+        &io_inspect,
+        gw * 4,
+        gw - 1,
+        StyleType::Input,
+        mono,
+    );
 
     let io_in_msg = if app.o2.f < 250 {
         format!("< {}", app.midi.input_device_name)
     } else {
         String::new()
     };
-    write_ui(&mut ui_l1, &io_in_msg, gw * 5, gw * 4, StyleType::Input, mono);
+    write_ui(
+        &mut ui_l1,
+        &io_in_msg,
+        gw * 5,
+        gw * 4,
+        StyleType::Input,
+        mono,
+    );
 
     if app.commander.active {
         let cmd_str = format!(
@@ -375,7 +396,14 @@ fn draw_status_bar(f: &mut Frame, app: &EditorState, area: Rect) {
         } else {
             String::new()
         };
-        write_ui(&mut ui_l2, &io_out_msg, gw * 5, gw * 4, StyleType::Input, mono);
+        write_ui(
+            &mut ui_l2,
+            &io_out_msg,
+            gw * 5,
+            gw * 4,
+            StyleType::Input,
+            mono,
+        );
     }
 
     let status_lines = vec![spans_to_line(&ui_l1), spans_to_line(&ui_l2)];
