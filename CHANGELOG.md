@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.2
+
+### Added
+
+- `--contrast` CLI flag under the Display options group; uses colours only where they aid usability: editing elements and menus stay coloured while grid dots and crosses are rendered in white
+- Guide overlay showing the full operator reference; displayed automatically on every launch and toggled with `Ctrl+G`, dismissed by pressing `Esc` or moving the cursor
+
+### Changed
+
+- Engine now starts unpaused by default; the guide overlay is shown on launch to orient new users before the first cursor movement
+- Operators reference popup is now rendered in multiple columns
+- MIDI Beat Clock and note dispatch moved to a dedicated `midi-clock` OS thread in `core::io::clock`, running a sleep-then-spin timing loop; clock jitter is now sub-10 μs and fully isolated from terminal rendering and keyboard input
+
+### Fixed
+
+- Note kill messages in `operators.rs` mixed `[u8; 3]` array literals and `Vec<u8>` values in the same `Vec`, causing a type inference error; all `kill_notes.push()` call sites now consistently use `vec!`
+
 ## 0.2.1
 
 ### Added
