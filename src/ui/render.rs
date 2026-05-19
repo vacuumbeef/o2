@@ -33,7 +33,7 @@
 
 use crate::core::oxygen::{EditorState, InputMode, PopupType, PromptPurpose};
 use crate::editor::input::autocomplete_path;
-use crate::ui::theme::{B_INV, BG, F_HIGH, F_INV, F_MED, StyleType, darken};
+use crate::ui::theme::{B_HIGH, B_INV, BG, F_HIGH, F_INV, F_LOW, F_MED, StyleType, darken};
 use ratatui::{
     Frame,
     layout::{Constraint, HorizontalAlignment, Layout, Rect},
@@ -443,6 +443,9 @@ pub fn draw(f: &mut Frame, app: &EditorState) {
 
     let chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(2)]).split(f.area());
     draw_grid(f, app, chunks[0]);
+    if app.guide {
+        draw_guide(f, app, chunks[0]);
+    }
     draw_status_bar(f, app, chunks[1]);
 
     let mut prev_rect: Option<Rect> = None;
@@ -465,7 +468,14 @@ pub fn draw(f: &mut Frame, app: &EditorState) {
 pub fn get_popup_rect(area: Rect, popup_type: &PopupType, prev_rect: Option<Rect>) -> Rect {
     let (mut width, mut height) = match popup_type {
         PopupType::Controls => (57, 25),
-        PopupType::Operators => (38, 35),
+        PopupType::Operators => {
+            const N_OPS: u16 = 35;
+            const COL_INNER_W: u16 = 35;
+            let avail_rows = area.height.saturating_sub(2).max(1);
+            let rows_per_col = N_OPS.min(avail_rows);
+            let num_cols = (N_OPS + rows_per_col - 1) / rows_per_col;
+            (num_cols * COL_INNER_W + 2, rows_per_col + 2)
+        }
         PopupType::About { .. } => (47, 13),
         PopupType::MainMenu { .. } => (26, 20),
         PopupType::MidiMenu { devices, .. } => {
@@ -537,6 +547,90 @@ pub fn get_popup_rect(area: Rect, popup_type: &PopupType, prev_rect: Option<Rect
     rect.width = rect.width.min(area.width.saturating_sub(rect.x));
     rect.height = rect.height.min(area.height.saturating_sub(rect.y));
     rect
+}
+
+fn draw_guide(f: &mut Frame, app: &EditorState, area: Rect) {
+    let operators: &[(char, &str)] = &[
+        ('a', "Outputs sum of inputs"),
+        ('b', "Outputs difference of inputs"),
+        ('c', "Outputs modulo of frame"),
+        ('d', "Bangs on modulo of frame"),
+        ('e', "Moves eastward, or bangs"),
+        ('f', "Bangs if inputs are equal"),
+        ('g', "Writes operands with offset"),
+        ('h', "Halts southward operand"),
+        ('i', "Increments southward operand"),
+        ('j', "Outputs northward operand"),
+        ('k', "Reads multiple variables"),
+        ('l', "Outputs smallest input"),
+        ('m', "Outputs product of inputs"),
+        ('n', "Moves Northward, or bangs"),
+        ('o', "Reads operand with offset"),
+        ('p', "Writes eastward operand"),
+        ('q', "Reads operands with offset"),
+        ('r', "Outputs random value"),
+        ('s', "Moves southward, or bangs"),
+        ('t', "Reads eastward operand"),
+        ('u', "Bangs on Euclidean rhythm"),
+        ('v', "Reads and writes variable"),
+        ('w', "Moves westward, or bangs"),
+        ('x', "Writes operand with offset"),
+        ('y', "Outputs westward operand"),
+        ('z', "Transitions operand to target"),
+        ('*', "Bangs neighboring operands"),
+        ('#', "Halts line"),
+        ('$', "Sends ORCA command"),
+        (':', "Sends MIDI note"),
+        ('!', "Sends MIDI control change"),
+        ('?', "Sends MIDI pitch bend"),
+        ('%', "Sends MIDI monophonic note"),
+        ('=', "Sends OSC message"),
+        (';', "Sends UDP message"),
+    ];
+
+    let (glyph_style, desc_style) = if app.monochrome {
+        (
+            Style::new().bg(F_HIGH).fg(F_INV),
+            Style::new().bg(BG).fg(F_HIGH),
+        )
+    } else {
+        let glyph_fg = if app.contrast { F_INV } else { F_LOW };
+        (
+            Style::new().bg(B_HIGH).fg(glyph_fg),
+            Style::new().bg(BG).fg(F_HIGH),
+        )
+    };
+
+    let frame = (area.height as usize).saturating_sub(4).max(1);
+
+    for (i, &(g, d)) in operators.iter().enumerate() {
+        let col = i / frame;
+        let row = i % frame;
+        let screen_x = col * 32 + 2;
+        let screen_y = row + 2;
+
+        if screen_y >= area.height as usize {
+            continue;
+        }
+
+        if screen_x < area.width as usize {
+            f.render_widget(
+                Paragraph::new(g.to_string()).style(glyph_style),
+                Rect::new(area.x + screen_x as u16, area.y + screen_y as u16, 1, 1),
+            );
+        }
+
+        let desc_x = screen_x + 2;
+        if desc_x < area.width as usize {
+            let desc_w = (area.width as usize - desc_x).min(d.len()) as u16;
+            if desc_w > 0 {
+                f.render_widget(
+                    Paragraph::new(d.to_string()).style(desc_style),
+                    Rect::new(area.x + desc_x as u16, area.y + screen_y as u16, desc_w, 1),
+                );
+            }
+        }
+    }
 }
 
 fn draw_controls_popup(f: &mut Frame, popup_style: Style, bold_style: Style, rect: Rect) {
@@ -621,28 +715,64 @@ fn draw_operators_popup(f: &mut Frame, popup_style: Style, bold_style: Style, re
         ('Z', "Transitions operand to target."),
         ('*', "Bangs neighboring operands."),
         ('#', "Halts line."),
+        ('$', "Sends ORCA command."),
         (':', "Sends MIDI note."),
         ('!', "Sends MIDI control change."),
         ('?', "Sends MIDI pitch bend."),
+        ('%', "Sends MIDI monophonic note."),
         ('=', "Sends OSC message."),
         (';', "Sends UDP message."),
     ];
 
-    let rows: Vec<Row> = operators
-        .iter()
-        .map(|&(g, d)| {
-            Row::new(vec![
-                Cell::from(Span::styled(format!(" {}", g), bold_style)),
-                Cell::from(Span::styled(format!(" {}", d), popup_style)),
-            ])
-        })
-        .collect();
+    let block = Block::bordered().title(" Operators ").style(popup_style);
+    let inner = block.inner(rect);
+    f.render_widget(block, rect);
 
-    let table = Table::new(rows, [Constraint::Length(3), Constraint::Min(30)])
-        .block(Block::bordered().title(" Operators ").style(popup_style))
-        .style(popup_style);
+    if inner.height == 0 || inner.width == 0 {
+        return;
+    }
 
-    f.render_widget(table, rect);
+    let n = operators.len();
+    let rows_per_col = inner.height as usize;
+    let num_cols = ((n + rows_per_col - 1) / rows_per_col).max(1);
+    let col_w = inner.width / num_cols as u16;
+
+    for col in 0..num_cols {
+        let start = col * rows_per_col;
+        if start >= n {
+            break;
+        }
+        let end = (start + rows_per_col).min(n);
+
+        let col_x = inner.x + col as u16 * col_w;
+        let this_col_w = if col == num_cols - 1 {
+            inner.width.saturating_sub(col as u16 * col_w)
+        } else {
+            col_w
+        };
+
+        if this_col_w == 0 {
+            break;
+        }
+
+        let col_rect = Rect::new(col_x, inner.y, this_col_w, inner.height);
+        let desc_w = this_col_w.saturating_sub(3);
+
+        let rows: Vec<Row> = operators[start..end]
+            .iter()
+            .map(|&(g, d)| {
+                Row::new(vec![
+                    Cell::from(Span::styled(format!(" {}", g), bold_style)),
+                    Cell::from(Span::styled(format!(" {}", d), popup_style)),
+                ])
+            })
+            .collect();
+
+        let table = Table::new(rows, [Constraint::Length(3), Constraint::Length(desc_w)])
+            .style(popup_style);
+
+        f.render_widget(table, col_rect);
+    }
 }
 
 fn draw_about_popup(f: &mut Frame, popup_style: Style, rect: Rect, opened_at: &std::time::Instant) {
