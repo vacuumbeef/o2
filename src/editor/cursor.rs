@@ -51,6 +51,7 @@ impl EditorState {
         self.cursor.ch = h.clamp(min_ch, max_ch);
 
         self.cursor.calc_bounds();
+        self.guide = false;
     }
 
     /// Selects the entire grid and switches to [`InputMode::Selection`].
