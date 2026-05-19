@@ -15,6 +15,11 @@ Rust port of the ORCΛ esoteric programming language and terminal livecoding env
 [![License: GPL-3.0-or-later](https://img.shields.io/crates/l/o2-rs.svg)](LICENSE)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/coignard)
 
+<picture>
+  <source srcset="https://github.com/coignard/o2/blob/main/assets/screenshot.png?raw=true">
+  <img src="assets/screenshot.png" alt="O₂">
+</picture>
+
 </div>
 
 ## Install
