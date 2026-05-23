@@ -141,7 +141,7 @@ pub struct EditorState {
     pub popup: Vec<PopupType>,
 
     /// When `true`, the renderer uses only black and white instead of the full colour palette.
-    pub monochrome: bool,
+    pub bw: bool,
 
     /// When `true`, grid dots and crosses are rendered in white while all
     /// other UI elements (menus, editing, status bar) retain their colours.
@@ -199,7 +199,7 @@ impl EditorState {
             midi: MidiState::new(),
             midi_bclock: false,
             popup: Vec::new(),
-            monochrome: false,
+            bw: false,
             contrast: false,
             guide: true,
             custom_colors: [None, None, None],

@@ -116,9 +116,9 @@ fn apply_custom_colors(fg: Color, bg: Color, custom: &[Option<(u8, u8, u8)>; 3])
     (remap(fg), remap(bg))
 }
 
-fn resolve_colors(style: StyleType, monochrome: bool, contrast: bool) -> (Color, Color) {
+fn resolve_colors(style: StyleType, bw: bool, contrast: bool) -> (Color, Color) {
     let (fg, bg) = style.colors();
-    if monochrome {
+    if bw {
         if bg.is_some() {
             (F_INV, F_HIGH)
         } else if fg.is_some() {
@@ -139,10 +139,10 @@ fn write_ui(
     offset: usize,
     limit: usize,
     style: StyleType,
-    monochrome: bool,
+    bw: bool,
     contrast: bool,
 ) {
-    let (fg, bg) = resolve_colors(style, monochrome, contrast);
+    let (fg, bg) = resolve_colors(style, bw, contrast);
 
     for (i, c) in text.chars().take(limit).enumerate() {
         if offset + i < row.len() {
@@ -186,7 +186,7 @@ fn draw_grid(f: &mut Frame, app: &EditorState, area: Rect) {
                 };
 
                 let theme_type = make_style(app, x, y, display_glyph, selection_glyph);
-                let (fg, bg) = resolve_colors(theme_type, app.monochrome, app.contrast);
+                let (fg, bg) = resolve_colors(theme_type, app.bw, app.contrast);
                 let (fg, bg) = apply_custom_colors(fg, bg, &app.custom_colors);
                 let s = Style::new().fg(fg).bg(bg);
 
@@ -271,7 +271,7 @@ fn draw_status_bar(f: &mut Frame, app: &EditorState, area: Rect) {
     } else {
         "empty".to_string()
     };
-    let mono = app.monochrome;
+    let mono = app.bw;
     let contrast = app.contrast;
     write_ui(
         &mut ui_l1,
@@ -643,7 +643,7 @@ fn draw_guide(f: &mut Frame, app: &EditorState, area: Rect) {
         (';', "Sends UDP message"),
     ];
 
-    let (glyph_style, desc_style) = if app.monochrome {
+    let (glyph_style, desc_style) = if app.bw {
         (
             Style::new().bg(F_HIGH).fg(F_INV),
             Style::new().bg(BG).fg(F_HIGH),
@@ -1164,7 +1164,7 @@ fn draw_prompt_popup(
     let mut spans = vec![Span::styled(" ", popup_style)];
 
     let blink = app.o2.f % 2 == 0;
-    let (cursor_fg_a, cursor_bg_a, cursor_fg_b, cursor_bg_b) = if app.monochrome {
+    let (cursor_fg_a, cursor_bg_a, cursor_fg_b, cursor_bg_b) = if app.bw {
         (F_HIGH, F_INV, F_INV, F_HIGH)
     } else {
         (B_INV, BG, BG, B_INV)
@@ -1183,7 +1183,7 @@ fn draw_prompt_popup(
         }
     }
 
-    let (ac_fg, ac_bg) = if app.monochrome {
+    let (ac_fg, ac_bg) = if app.bw {
         (F_INV, F_HIGH)
     } else {
         (darken(B_INV, 60), B_INV)
@@ -1282,7 +1282,7 @@ fn draw_roflcopter_popup(f: &mut Frame, popup_style: Style, rect: Rect, frame_id
 /// tables for reference cards, lists for menus, and paragraphs for text
 /// prompts and messages.
 fn draw_popup_content(f: &mut Frame, app: &EditorState, popup_type: &PopupType, rect: Rect) {
-    let (popup_style, bold_style) = if app.monochrome {
+    let (popup_style, bold_style) = if app.bw {
         let s = Style::new().bg(F_HIGH).fg(F_INV);
         (s, s.add_modifier(Modifier::BOLD))
     } else {

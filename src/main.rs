@@ -130,13 +130,13 @@ struct Cli {
 
     /// Use only black and white instead of the full
     /// colour palette.
-    #[arg(long, help_heading = "Display options", verbatim_doc_comment)]
-    monochrome: bool,
+    #[arg(long, help_heading = "Display options", conflicts_with = "contrast", verbatim_doc_comment)]
+    bw: bool,
 
     /// Use colours only where they aid usability: editing
     /// elements and menus stay coloured; grid dots and
     /// crosses are rendered in white.
-    #[arg(long, help_heading = "Display options", verbatim_doc_comment)]
+    #[arg(long, help_heading = "Display options", conflicts_with = "bw", verbatim_doc_comment)]
     contrast: bool,
 
     #[arg(value_name = "file", hide = true)]
@@ -348,7 +348,7 @@ fn main() -> Result<()> {
     let mut app = EditorState::new(term_w, term_h, cli.seed, cli.undo_limit);
     app.set_bpm(cli.bpm);
     app.midi.osc_midi_bidule = cli.osc_midi_bidule.clone();
-    app.monochrome = cli.monochrome;
+    app.bw = cli.bw;
     app.contrast = cli.contrast;
 
     if let Some(path) = &cli.file
