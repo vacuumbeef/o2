@@ -130,13 +130,23 @@ struct Cli {
 
     /// Use only black and white instead of the full
     /// colour palette.
-    #[arg(long, help_heading = "Display options", conflicts_with = "contrast", verbatim_doc_comment)]
+    #[arg(
+        long,
+        help_heading = "Display options",
+        conflicts_with = "contrast",
+        verbatim_doc_comment
+    )]
     bw: bool,
 
     /// Use colours only where they aid usability: editing
-    /// elements and menus stay coloured; grid dots and
-    /// crosses are rendered in white.
-    #[arg(long, help_heading = "Display options", conflicts_with = "bw", verbatim_doc_comment)]
+    /// elements and menus stay coloured; grid elements are
+    /// rendered in white.
+    #[arg(
+        long,
+        help_heading = "Display options",
+        conflicts_with = "bw",
+        verbatim_doc_comment
+    )]
     contrast: bool,
 
     #[arg(value_name = "file", hide = true)]
@@ -196,7 +206,10 @@ fn run_app(
     _cli: &Cli,
 ) -> Result<()> {
     let mut next_frame_tick = Instant::now();
+    let mut next_draw_tick = Instant::now();
     let mut needs_draw = true;
+
+    const UI_FRAME: Duration = Duration::from_millis(33);
 
     loop {
         // Sync BPM / paused / bclock to the clock thread on every iteration.
@@ -241,6 +254,10 @@ fn run_app(
         let now = Instant::now();
         let mut timeout = next_frame_tick.saturating_duration_since(now);
 
+        // Cap to the UI refresh rate so the display updates at ~30 fps
+        // independently of the engine tick rate.
+        timeout = timeout.min(next_draw_tick.saturating_duration_since(now));
+
         // In puppet mode cap the poll interval to a quarter-tick so the main
         // thread processes puppet_tick within a fraction of one engine step.
         if app.midi.is_puppet() {
@@ -282,6 +299,12 @@ fn run_app(
         }
 
         let now = Instant::now();
+
+        if now >= next_draw_tick {
+            needs_draw = true;
+            next_draw_tick = now + UI_FRAME;
+        }
+
         let puppet_tick = app.midi.poll_puppet_tick();
         let timer_tick = !app.midi.is_puppet() && now >= next_frame_tick;
 
