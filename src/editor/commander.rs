@@ -244,28 +244,52 @@ pub fn run_command(app: &mut EditorState, cmd: &str, origin: Option<(usize, usiz
         "paste" | "pa" => app.paste(),
         "erase" | "er" => app.erase(),
         "inject" | "in" => {
-            let base = std::path::Path::new(value);
-            let with_ext = base.with_extension("o2");
-            let mut candidates = vec![base.to_path_buf(), with_ext.clone()];
-            if let Some(dir) = app.current_file.as_deref().and_then(|p| p.parent()) {
-                candidates.push(dir.join(base));
-                candidates.push(dir.join(&with_ext));
-            }
-            if let Some(content) = candidates
-                .iter()
-                .find_map(|p| std::fs::read_to_string(p).ok())
-            {
-                let x = app.cursor.cx;
-                let y = app.cursor.cy;
-                for (row, line) in content.lines().enumerate() {
-                    for (col, c) in line.chars().enumerate() {
-                        app.write_silent(x + col, y + row, c);
-                    }
+            let p: Vec<&str> = value.split(';').collect();
+            if !p.is_empty() {
+                let filename = p[0];
+                let x = p
+                    .get(1)
+                    .and_then(|v| v.parse::<isize>().ok())
+                    .unwrap_or_else(|| {
+                        origin
+                            .map(|o| o.0 as isize)
+                            .unwrap_or(app.cursor.cx as isize)
+                    });
+                let y = p
+                    .get(2)
+                    .and_then(|v| v.parse::<isize>().ok())
+                    .unwrap_or_else(|| {
+                        origin
+                            .map(|o| o.1 as isize)
+                            .unwrap_or(app.cursor.cy as isize)
+                    });
+                let base = std::path::Path::new(filename);
+                let with_o2 = base.with_extension("o2");
+                let with_orca = base.with_extension("orca");
+                let mut candidates = vec![base.to_path_buf(), with_o2.clone(), with_orca.clone()];
+                if let Some(dir) = app.current_file.as_deref().and_then(|f| f.parent()) {
+                    candidates.push(dir.join(base));
+                    candidates.push(dir.join(&with_o2));
+                    candidates.push(dir.join(&with_orca));
                 }
-                app.cursor.cw = 0;
-                app.cursor.ch = 0;
-                app.history.record(&app.o2.cells);
-                app.update_ports();
+                if let Some(content) = candidates
+                    .iter()
+                    .find_map(|p| std::fs::read_to_string(p).ok())
+                {
+                    for (row, line) in content.lines().enumerate() {
+                        for (col, c) in line.chars().enumerate() {
+                            let tx = x + col as isize;
+                            let ty = y + row as isize;
+                            if tx >= 0 && ty >= 0 {
+                                app.write_silent(tx as usize, ty as usize, c);
+                            }
+                        }
+                    }
+                    app.cursor.cw = 0;
+                    app.cursor.ch = 0;
+                    app.history.record(&app.o2.cells);
+                    app.update_ports();
+                }
             }
         }
         "color" | "cl" => {
