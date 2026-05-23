@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.4
+
+### Added
+
+- `inject` command now accepts a coordinate suffix: `inject:file;x;y` places the patch at the given grid position instead of the cursor; each coordinate is optional and falls back to the cursor position
+
+### Changed
+
+- `--monochrome` flag renamed to `--bw`; conflicts with `--contrast`
+- UI now renders at a fixed 30 fps independently of the engine tick rate; previously the display only updated on BPM ticks, causing the refresh rate to drop at low tempos
+
+### Fixed
+
+- `inject` command now also resolves `.orca` file extensions alongside `.o2`; negative target coordinates are silently clamped to the grid boundary
+- `%` operator (`op_midi_mono`) no longer clears the output port when the transposed note is out of range, preserving the previous port decoration
+- Puppet mode indicator in the status bar now uses the Output style instead of the Clock style, matching the JS reference behaviour
+- Custom colours set via the `color` command now apply correctly to the status bar; previously `B_MED` and `B_HIGH` overrides had no effect on the bottom two rows
+- Operator output glyphs (e.g. `*` under `D`) now appear in the same render frame as the keypress rather than waiting for the next BPM tick
+
 ## 0.2.3
 
 ### Added
