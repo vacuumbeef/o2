@@ -253,7 +253,11 @@ fn run_app(
             timeout = timeout.min(tick_rate / 4);
         }
 
-        if app.popup.iter().any(|p| matches!(p, PopupType::About { .. })) {
+        if app
+            .popup
+            .iter()
+            .any(|p| matches!(p, PopupType::About { .. }))
+        {
             timeout = timeout.min(Duration::from_millis(33));
             needs_draw = true;
         }

@@ -140,7 +140,8 @@ impl MidiClock {
             }
 
             if bpm != current_bpm {
-                let new_tick_rate = Duration::from_nanos(60_000_000_000_u64 / (bpm.max(1) as u64) / 4);
+                let new_tick_rate =
+                    Duration::from_nanos(60_000_000_000_u64 / (bpm.max(1) as u64) / 4);
                 let new_clock_rate = new_tick_rate / 6;
                 let now = Instant::now();
                 if next_tick > now + new_clock_rate {
@@ -187,7 +188,8 @@ impl MidiClock {
                 continue;
             }
 
-            let tick_rate = Duration::from_nanos(60_000_000_000_u64 / (current_bpm.max(1) as u64) / 4);
+            let tick_rate =
+                Duration::from_nanos(60_000_000_000_u64 / (current_bpm.max(1) as u64) / 4);
             let clock_rate = tick_rate / 6;
 
             let now = Instant::now();

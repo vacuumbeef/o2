@@ -809,7 +809,13 @@ fn handle_commander_key(app: &mut EditorState, key: KeyEvent, ctrl: bool, alt: b
     }
 }
 
-fn handle_main_key(app: &mut EditorState, key: KeyEvent, ctrl: bool, shift: bool, alt: bool) -> bool {
+fn handle_main_key(
+    app: &mut EditorState,
+    key: KeyEvent,
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+) -> bool {
     let leap_x = app.grid_w as isize;
     let leap_y = app.grid_h as isize;
 
