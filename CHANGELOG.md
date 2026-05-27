@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.5
+
+### Changed
+
+- Port decorations are no longer computed as a separate dry-run pass; operators now write ports directly during the normal scan, removing the `update_ports()` call after every edit operation
+- Variable slots internally represented as `Option<char>` instead of using `'.'` as a sentinel value; external behaviour is unchanged
+- UI redraws are now skipped for keystrokes that do not modify state (e.g. unrecognised characters typed while paused), reducing unnecessary terminal output
+
+### Fixed
+
+- BPM changes are now applied to the clock thread immediately: `next_tick` is clamped forward when the tempo increases, preventing a long stall before the first tick at the new rate
+- Clock thread now drains the command channel during its sleep window via `recv_timeout` instead of blocking unconditionally; control messages (Silence, SelectOutput, etc.) are processed without waiting for the next tick
+- IO event count shown in the status bar is now captured at `flush()` time instead of being read mid-frame, giving a stable value that matches the events actually dispatched on that tick; OSC and UDP queues are included in the count alongside notes and CC messages
+
 ## 0.2.4
 
 ### Added
