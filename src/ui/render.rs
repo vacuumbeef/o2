@@ -317,10 +317,7 @@ fn draw_status_bar(f: &mut Frame, app: &EditorState, area: Rect) {
         contrast,
     );
 
-    let io_count = app.midi.stack.len()
-        + app.midi.mono_stack.iter().flatten().count()
-        + app.midi.cc_stack.len();
-
+    let io_count = app.midi.last_io_count;
     let io_str = "|".repeat(io_count.min(gw.saturating_sub(1)));
     let io_inspect = format!("{:.<1$}", io_str, gw.saturating_sub(1));
     write_ui(
@@ -433,7 +430,7 @@ fn draw_status_bar(f: &mut Frame, app: &EditorState, area: Rect) {
             .variables
             .iter()
             .enumerate()
-            .filter(|&(_, &c)| c != '.')
+            .filter(|&(_, &opt)| opt.is_some())
             .map(|(i, _)| i as u8 as char)
             .collect();
 
