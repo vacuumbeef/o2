@@ -27,12 +27,12 @@
 //! # Thread model
 //!
 //! ```text
-//! main thread                          midi-clock thread
-//! ─────────────────                    ─────────────────────────────
-//! operate()  ──> fills stacks          phase-locked spin loop
-//! flush()    ──> MidiFrame ──chan──>   dispatch_frame() + clock pulse
-//! set_shared()  AtomicU64 ──────────> reads bpm / paused / bclock
-//! MidiCommand   ──cmd-chan────────>    exec_cmd()
+//! main thread                            midi-clock thread
+//! ------------                           --------------------------------
+//! operate()    --> fills stacks          phase-locked spin loop
+//! flush()      --> MidiFrame -- chan --> dispatch_frame() + clock pulse
+//! set_shared()     AtomicU64 ----------> reads bpm / paused / bclock
+//! MidiCommand  --- cmd-chan  ----------> exec_cmd()
 //! ```
 
 use crate::core::io::clock::MidiClock;
@@ -169,6 +169,8 @@ pub enum MidiMessage {
     Pb(MidiPb),
 }
 
+/// Main-thread MIDI facade: accumulates note/CC events from operators and
+/// communicates with the [`MidiClock`] thread.
 pub struct MidiState {
     /// Polyphonic note stack: notes are added by `:` and removed after their
     /// `length` counts down to zero.
@@ -511,12 +513,6 @@ impl MidiState {
             osc_midi_bidule: self.osc_midi_bidule.clone(),
         };
         let _ = self.frame_tx.try_send(frame);
-    }
-
-    /// Discards any MIDI bytes accumulated by [`send_midi_msg`](MidiState::send_midi_msg)
-    /// during a preview tick so they are not forwarded to the clock thread.
-    pub(crate) fn discard_pending(&mut self) {
-        self.pending.clear();
     }
 
     /// Clears all local note/CC/OSC/UDP stacks and sends a
