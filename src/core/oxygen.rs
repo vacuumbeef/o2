@@ -63,8 +63,8 @@ pub struct OxygenEngine {
     /// inspector in the status bar.
     pub port_names: Vec<Option<(&'static str, char)>>,
     /// Global variable store indexed by ASCII character code.
-    /// Slots that have not been written hold `'.'`.
-    pub variables: [char; 128],
+    /// Slots that have not been written hold `None`.
+    pub variables: [Option<char>; 128],
     /// Current frame counter, incremented once per clock tick.
     pub f: usize,
     /// Internal state for the xorshift64-based pseudo-random number generator.
@@ -83,7 +83,7 @@ impl OxygenEngine {
             locks: vec![false; w * h],
             ports: vec![None; w * h],
             port_names: vec![None; w * h],
-            variables: ['.'; 128],
+            variables: [None; 128],
             f: 0,
             rng_state: seed,
             ops_cache: Vec::with_capacity(256),
@@ -304,7 +304,6 @@ impl EditorState {
             self.cursor.cw,
             self.cursor.ch,
         );
-        self.update_ports();
     }
 
     /// Serialises the grid contents to a newline-delimited string.
@@ -343,13 +342,11 @@ impl EditorState {
     /// Reverts the grid to the previous history snapshot (Ctrl+Z).
     pub fn undo(&mut self) {
         self.history.undo(&mut self.o2.cells);
-        self.update_ports();
     }
 
     /// Re-applies a previously undone change (Ctrl+Shift+Z).
     pub fn redo(&mut self) {
         self.history.redo(&mut self.o2.cells);
-        self.update_ports();
     }
 
     /// Returns `true` if the character `g` is permitted in the grid.
@@ -451,7 +448,6 @@ impl EditorState {
         self.history.clear();
         self.history.record(&self.o2.cells);
         self.history.saved_absolute_index = None;
-        self.update_ports();
     }
 
     /// Returns the glyph at `(x, y)`, or `'.'` if the coordinates are out of bounds.
@@ -525,7 +521,7 @@ impl EditorState {
     /// Reads the value stored in variable slot `key`.
     pub fn var_read(&self, key: char) -> char {
         if key.is_ascii() {
-            self.o2.variables[key as usize]
+            self.o2.variables[key as usize].unwrap_or('.')
         } else {
             '.'
         }
@@ -534,7 +530,7 @@ impl EditorState {
     /// Writes `val` into variable slot `key`.
     pub fn var_write(&mut self, key: char, val: char) {
         if key.is_ascii() {
-            self.o2.variables[key as usize] = val;
+            self.o2.variables[key as usize] = Some(val);
         }
     }
 
@@ -549,20 +545,12 @@ impl EditorState {
         self.o2.locks.fill(false);
         self.o2.ports.fill(None);
         self.o2.port_names.fill(None);
-        self.o2.variables.fill('.');
+        self.o2.variables.fill(None);
 
-        self.scan_and_run(false);
+        self.scan_and_run();
     }
 
-    /// Runs all operators in dry-run mode to update port decorations.
-    pub fn update_ports(&mut self) {
-        self.o2.ports.fill(None);
-        self.o2.port_names.fill(None);
-
-        self.scan_and_run(true);
-    }
-
-    fn scan_and_run(&mut self, dry_run: bool) {
+    fn scan_and_run(&mut self) {
         let mut ops = std::mem::take(&mut self.o2.ops_cache);
         ops.clear();
 
@@ -580,7 +568,7 @@ impl EditorState {
             if self.o2.locks[idx] {
                 continue;
             }
-            crate::core::operators::run(self, x, y, g, false, dry_run);
+            crate::core::operators::run(self, x, y, g, false);
         }
 
         self.o2.ops_cache = ops;
@@ -785,7 +773,7 @@ impl EditorState {
     pub fn trigger(&mut self) {
         let g = self.glyph_at(self.cursor.cx, self.cursor.cy);
         if g != '.' && Self::is_operator(g) {
-            crate::core::operators::run(self, self.cursor.cx, self.cursor.cy, g, true, false);
+            crate::core::operators::run(self, self.cursor.cx, self.cursor.cy, g, true);
         }
     }
 
@@ -840,7 +828,6 @@ impl EditorState {
 
         self.select(self.cursor.min_x as isize, self.cursor.min_y as isize, w, h);
         self.history.record(&self.o2.cells);
-        self.update_ports();
     }
 
     /// Returns the names of all available MIDI output devices.

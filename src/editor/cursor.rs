@@ -87,34 +87,12 @@ impl EditorState {
     ///
     /// Both the new anchor and the resulting selection are clamped to the grid
     /// boundaries via [`select`](EditorState::select).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use o2_rs::core::oxygen::EditorState;
-    ///
-    /// let mut app = EditorState::new(10, 10, 1, 100);
-    /// app.select(5, 5, 0, 0);
-    /// app.scale_cursor(2, -2); // move anchor right 2, down 2
-    /// assert_eq!(app.cursor.cx, 7);
-    /// assert_eq!(app.cursor.cy, 7);
-    /// assert_eq!(app.cursor.cw, -2);
-    /// assert_eq!(app.cursor.ch, -2);
-    /// ```
     pub fn scale_cursor(&mut self, dw: isize, dh: isize) {
-        let (max_grid_x, max_grid_y) = self.grid_bounds();
-
-        let target_cx = (self.cursor.cx as isize + dw).clamp(0, max_grid_x);
-        let target_cy = (self.cursor.cy as isize - dh).clamp(0, max_grid_y);
-
-        let origin_x = self.cursor.cx as isize + self.cursor.cw;
-        let origin_y = self.cursor.cy as isize + self.cursor.ch;
-
         self.select(
-            target_cx,
-            target_cy,
-            origin_x - target_cx,
-            origin_y - target_cy,
+            self.cursor.cx as isize,
+            self.cursor.cy as isize,
+            self.cursor.cw + dw,
+            self.cursor.ch - dh,
         );
     }
 
@@ -154,14 +132,9 @@ impl EditorState {
         for y in self.cursor.min_y..=self.cursor.max_y {
             for x in self.cursor.min_x..=self.cursor.max_x {
                 if let Some(idx) = self.index_at(x, y) {
-                    block.push((
-                        self.o2.cells[idx],
-                        self.o2.ports[idx],
-                        self.o2.port_names[idx],
-                        self.o2.locks[idx],
-                    ));
+                    block.push(self.o2.cells[idx]);
                 } else {
-                    block.push(('.', None, None, false));
+                    block.push('.');
                 }
             }
         }
@@ -170,9 +143,6 @@ impl EditorState {
             for x in self.cursor.min_x..=self.cursor.max_x {
                 if let Some(idx) = self.index_at(x, y) {
                     self.o2.cells[idx] = '.';
-                    self.o2.ports[idx] = None;
-                    self.o2.port_names[idx] = None;
-                    self.o2.locks[idx] = false;
                 }
             }
         }
@@ -182,19 +152,15 @@ impl EditorState {
         let mut block_iter = block.into_iter();
         for y in self.cursor.min_y..=self.cursor.max_y {
             for x in self.cursor.min_x..=self.cursor.max_x {
-                if let Some((g, port, port_name, lock)) = block_iter.next()
+                if let Some(g) = block_iter.next()
                     && let Some(idx) = self.index_at(x, y)
                 {
                     self.o2.cells[idx] = g;
-                    self.o2.ports[idx] = port;
-                    self.o2.port_names[idx] = port_name;
-                    self.o2.locks[idx] = lock;
                 }
             }
         }
 
         self.history.record(&self.o2.cells);
-        self.update_ports();
     }
 
     /// Returns `true` if `(x, y)` lies within the normalised selection bounding
@@ -220,7 +186,6 @@ impl EditorState {
                     self.move_cursor(1, 0);
                 }
                 self.history.record(&self.o2.cells);
-                self.update_ports();
             }
         }
     }
@@ -231,16 +196,11 @@ impl EditorState {
         for y in self.cursor.min_y..=self.cursor.max_y {
             for x in self.cursor.min_x..=self.cursor.max_x {
                 if let Some(idx) = self.index_at(x, y) {
-                    // Who you gon' call? (Ghostbusters!)
                     self.o2.cells[idx] = '.';
-                    self.o2.ports[idx] = None;
-                    self.o2.port_names[idx] = None;
-                    self.o2.locks[idx] = false;
                 }
             }
         }
         self.history.record(&self.o2.cells);
-        self.update_ports();
     }
 
     /// Converts all lowercase letters in the selection to uppercase and records
@@ -255,7 +215,6 @@ impl EditorState {
             }
         }
         self.history.record(&self.o2.cells);
-        self.update_ports();
     }
 
     /// Converts all uppercase letters in the selection to lowercase and records
@@ -270,7 +229,6 @@ impl EditorState {
             }
         }
         self.history.record(&self.o2.cells);
-        self.update_ports();
     }
 
     /// Toggles a `'#'` comment block on the left and right edges of the
@@ -296,7 +254,6 @@ impl EditorState {
             }
         }
         self.history.record(&self.o2.cells);
-        self.update_ports();
     }
 }
 
@@ -484,16 +441,16 @@ mod tests {
         let mut app = create_app();
         app.select(5, 5, 0, 0);
         app.scale_cursor(2, -2);
-        assert_eq!(app.cursor.cx, 7);
-        assert_eq!(app.cursor.cy, 7);
-        assert_eq!(app.cursor.cw, -2);
-        assert_eq!(app.cursor.ch, -2);
+        assert_eq!(app.cursor.cx, 5);
+        assert_eq!(app.cursor.cy, 5);
+        assert_eq!(app.cursor.cw, 2);
+        assert_eq!(app.cursor.ch, 2);
 
         app.scale_cursor(-10, 10);
-        assert_eq!(app.cursor.cx, 0);
-        assert_eq!(app.cursor.cy, 0);
-        assert_eq!(app.cursor.cw, 5);
-        assert_eq!(app.cursor.ch, 5);
+        assert_eq!(app.cursor.cx, 5);
+        assert_eq!(app.cursor.cy, 5);
+        assert_eq!(app.cursor.cw, -5);
+        assert_eq!(app.cursor.ch, -5);
     }
 
     #[test]

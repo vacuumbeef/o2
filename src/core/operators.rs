@@ -126,9 +126,7 @@ impl<'a> OpContext<'a> {
 /// # Parameters
 ///
 /// * `force` -- when `true`, the operator fires unconditionally (Ctrl+P).
-/// * `dry_run` -- when `true`, only port decorations are written; the grid and
-///   MIDI state are left untouched. Used by [`EditorState::update_ports`] during pause.
-pub fn run(app: &mut EditorState, x: usize, y: usize, g: char, force: bool, dry_run: bool) {
+pub fn run(app: &mut EditorState, x: usize, y: usize, g: char, force: bool) {
     let gl = g.to_ascii_lowercase();
     let is_uppercase = g.is_ascii_uppercase();
     let is_special = !g.is_ascii_alphanumeric();
@@ -137,7 +135,7 @@ pub fn run(app: &mut EditorState, x: usize, y: usize, g: char, force: bool, dry_
     let banged = app.has_neighbor_bang(x, y);
 
     let is_active = auto_run || banged || force;
-    let should_run = !dry_run && is_active;
+    let should_run = is_active;
     let draws_ports = auto_run;
 
     if draws_ports {
