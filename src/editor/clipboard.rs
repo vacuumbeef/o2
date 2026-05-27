@@ -61,10 +61,13 @@ fn pipe_to(cmd: &str, args: &[&str], text: &str) -> bool {
     else {
         return false;
     };
-    if let Some(stdin) = child.stdin.as_mut() {
-        let _ = stdin.write_all(text.as_bytes());
-    }
-    child.wait().map(|s| s.success()).unwrap_or(false)
+    let wrote = child
+        .stdin
+        .take()
+        .and_then(|mut s| s.write_all(text.as_bytes()).ok())
+        .is_some();
+    drop(child);
+    wrote
 }
 
 #[cfg(target_os = "linux")]
