@@ -180,8 +180,15 @@ impl EditorState {
     pub fn write_cursor(&mut self, g: char) {
         let allowed_g = if Self::is_allowed(g) { g } else { '.' };
 
-        if self.mode == InputMode::Normal {
+        if self.mode == InputMode::Append {
+            if let Some(idx) = self.index_at(self.cursor.cx, self.cursor.cy) {
+                self.o2.cells[idx] = allowed_g;
+                self.move_cursor(1, 0);
+                self.history.record(&self.o2.cells);
+            }
+        } else {
             let mut changed = false;
+
             for y in self.cursor.min_y..=self.cursor.max_y {
                 for x in self.cursor.min_x..=self.cursor.max_x {
                     if let Some(idx) = self.index_at(x, y) {
@@ -192,20 +199,11 @@ impl EditorState {
                     }
                 }
             }
+
             if changed {
                 self.history.record(&self.o2.cells);
             }
-            return;
         }
-
-        if self.mode == InputMode::Append {
-            if let Some(idx) = self.index_at(self.cursor.cx, self.cursor.cy) {
-                self.o2.cells[idx] = allowed_g;
-                self.move_cursor(1, 0);
-                self.history.record(&self.o2.cells);
-            }
-        }
-
     }
 
     /// Fills the selection bounding box with `'.'` and records a history
